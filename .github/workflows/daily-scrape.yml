@@ -42,7 +42,7 @@ jobs:
         shell: bash
         run: |
           if [ -z "$GOOGLE_CREDENTIALS_JSON" ]; then
-            echo "::error::Missing service-account JSON secret. Recommended name: GOOGLE_CREDENTIALS_JSON. See README for supported names."
+            echo "::error::Missing service-account JSON secret. Add the full JSON text as a Repository secret named GOOGLE_CREDENTIALS_JSON."
             exit 1
           fi
 
@@ -51,15 +51,27 @@ jobs:
           import os
           from pathlib import Path
 
-          raw = os.environ["GOOGLE_CREDENTIALS_JSON"]
+          raw = os.environ["GOOGLE_CREDENTIALS_JSON"].strip()
+
+          # Accept either raw JSON or JSON accidentally pasted with escaped quotes.
           try:
               credentials = json.loads(raw)
-          except json.JSONDecodeError as exc:
-              raise SystemExit(f"Google credentials secret is not valid JSON: {exc}")
+              normalized = raw
+          except json.JSONDecodeError as original_error:
+              try:
+                  candidate = raw.replace(r'\\"', '"')
+                  credentials = json.loads(candidate)
+                  normalized = candidate
+              except json.JSONDecodeError:
+                  raise SystemExit(
+                      "Google credentials secret is not valid JSON. Paste the raw contents "
+                      "of the service-account .json file into the secret value; do not add "
+                      "Markdown fences or escape every double quote."
+                  ) from original_error
 
-          if credentials.get("type") != "service_account":
+          if not isinstance(credentials, dict) or credentials.get("type") != "service_account":
               raise SystemExit("The configured JSON is not a Google service-account key.")
-          Path("credentials.json").write_text(raw, encoding="utf-8")
+          Path("credentials.json").write_text(normalized, encoding="utf-8")
           print("Service-account JSON validated and written for this runner.")
           PY
 
