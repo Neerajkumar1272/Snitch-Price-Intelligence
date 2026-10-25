@@ -59,7 +59,7 @@ jobs:
               normalized = raw
           except json.JSONDecodeError as original_error:
               try:
-                  candidate = raw.replace(r'\\"', '"')
+                  candidate = raw.replace(r'\"', '"')
                   credentials = json.loads(candidate)
                   normalized = candidate
               except json.JSONDecodeError:
