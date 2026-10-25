@@ -1,0 +1,67 @@
+name: Daily Snitch Price Intelligence
+
+on:
+  schedule:
+    # 09:00 Asia/Kolkata (IST, UTC+05:30) = 03:30 UTC
+    - cron: "30 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: daily-snitch-price-intelligence
+  cancel-in-progress: false
+
+jobs:
+  scrape-and-sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # Common secret-name fallbacks; value must be the FULL service-account JSON.
+      GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON || secrets.GOOGLE_CREDENTIALS || secrets.GOOGLE_SERVICE_ACCOUNT_JSON || secrets.GCP_SA_KEY }}
+      TARGET_BRAND: ${{ vars.TARGET_BRAND || vars.BRAND_NAME || 'Snitch' }}
+      TARGET_URL: ${{ vars.TARGET_URL || vars.SNITCH_URL || 'https://www.snitch.co.in/products.json?limit=250&page=1' }}
+      SPREADSHEET_NAME: ${{ vars.SPREADSHEET_NAME || 'Snitch_Price_Intelligence' }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip && pip install -r requirements.txt
+
+      - name: Validate and write Google service-account credentials
+        shell: bash
+        run: |
+          if [ -z "$GOOGLE_CREDENTIALS_JSON" ]; then
+            echo "::error::Missing service-account JSON secret. Add it as GOOGLE_CREDENTIALS_JSON (or use one of the supported fallback names in this workflow)."
+            exit 1
+          fi
+
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          raw = os.environ["GOOGLE_CREDENTIALS_JSON"]
+          try:
+              credentials = json.loads(raw)
+          except json.JSONDecodeError as exc:
+              raise SystemExit(f"Google credentials secret is not valid JSON: {exc}")
+
+          if credentials.get("type") != "service_account":
+              raise SystemExit("The configured JSON is not a Google service-account key.")
+          Path("credentials.json").write_text(raw, encoding="utf-8")
+          print("Service-account JSON validated and written for this runner.")
+          PY
+
+      - name: Run Snitch price extraction and Google Sheets sync
+        run: python main.py
