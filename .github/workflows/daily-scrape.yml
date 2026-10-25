@@ -18,8 +18,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      # Common secret-name fallbacks; value must be the FULL service-account JSON.
-      GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON || secrets.GOOGLE_CREDENTIALS || secrets.GOOGLE_SERVICE_ACCOUNT_JSON || secrets.GCP_SA_KEY }}
+      # Secret must contain the FULL Google service-account JSON.
+      GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON || secrets.GOOGLE_CREDENTIALS || secrets.GOOGLE_SERVICE_ACCOUNT_JSON || secrets.GOOGLE_SERVICE_ACCOUNT_KEY || secrets.GCP_SA_KEY }}
       TARGET_BRAND: ${{ vars.TARGET_BRAND || vars.BRAND_NAME || 'Snitch' }}
       TARGET_URL: ${{ vars.TARGET_URL || vars.SNITCH_URL || 'https://www.snitch.co.in/products.json?limit=250&page=1' }}
       SPREADSHEET_NAME: ${{ vars.SPREADSHEET_NAME || 'Snitch_Price_Intelligence' }}
@@ -42,7 +42,7 @@ jobs:
         shell: bash
         run: |
           if [ -z "$GOOGLE_CREDENTIALS_JSON" ]; then
-            echo "::error::Missing service-account JSON secret. Add it as GOOGLE_CREDENTIALS_JSON (or use one of the supported fallback names in this workflow)."
+            echo "::error::Missing service-account JSON secret. Recommended name: GOOGLE_CREDENTIALS_JSON. See README for supported names."
             exit 1
           fi
 
